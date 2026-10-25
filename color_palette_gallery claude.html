@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Palette Bank & Manual Picker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        .glass {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        #magnifier {
+            pointer-events: none;
+            display: none;
+            position: absolute;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            border: 3px solid #38bdf8;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            overflow: hidden;
+            z-index: 30;
+            background-color: #000;
+        }
+
+        /* LIGHTBOX: foto penuh + palet di kanan */
+        body.lb-open { overflow: hidden; }
+
+        #lightbox {
+            position: fixed;
+            inset: 0;
+            z-index: 40;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(2, 6, 23, 0.88);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+
+            &.open { display: flex; }
+
+            .lb-panel {
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                max-width: 80rem;
+                height: 100%;
+                max-height: 52rem;
+                overflow: hidden;
+                border-radius: 1.25rem;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                background: #0f172a;
+
+                @media (min-width: 1024px) {
+                    flex-direction: row;
+                }
+            }
+
+            .lb-stage {
+                position: relative;
+                flex: 1 1 0;
+                min-height: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #020617;
+
+                img {
+                    max-width: 100%;
+                    max-height: 100%;
+                    object-fit: contain;
+                }
+            }
+
+            .lb-nav {
+                position: absolute;
+                top: 50%;
+                translate: 0 -50%;
+                width: 2.5rem;
+                height: 2.5rem;
+                border-radius: 9999px;
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                background: rgba(15, 23, 42, 0.7);
+                color: #e2e8f0;
+                transition: background 0.2s, color 0.2s;
+
+                &:hover { background: #0ea5e9; color: #fff; }
+                &.prev { left: 0.75rem; }
+                &.next { right: 0.75rem; }
+            }
+
+            .lb-side {
+                display: flex;
+                flex-direction: column;
+                flex: none;
+                max-height: 45%;
+                overflow-y: auto;
+                padding: 1.25rem;
+                gap: 1rem;
+                border-top: 1px solid #1e293b;
+
+                @media (min-width: 1024px) {
+                    width: 22rem;
+                    max-height: none;
+                    border-top: 0;
+                    border-left: 1px solid #1e293b;
+                }
+            }
+
+            .lb-swatch {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                width: 100%;
+                padding: 0.5rem;
+                border-radius: 0.75rem;
+                border: 1px solid #1e293b;
+                background: rgba(30, 41, 59, 0.5);
+                text-align: left;
+                cursor: pointer;
+                transition: border-color 0.2s, background 0.2s;
+
+                &:hover {
+                    border-color: #38bdf8;
+                    background: rgba(30, 41, 59, 0.9);
+                }
+
+                .chip {
+                    flex: none;
+                    width: 3rem;
+                    height: 3rem;
+                    border-radius: 0.5rem;
+                    border: 1px solid rgba(255, 255, 255, 0.15);
+                }
+
+                .hex {
+                    font-family: 'JetBrains Mono', monospace;
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    color: #e2e8f0;
+                }
+
+                .label {
+                    font-size: 0.7rem;
+                    color: #94a3b8;
+                }
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
+
+    <!-- HEADER / NAVIGATION -->
+    <header class="sticky top-0 z-30 glass border-b border-slate-800 px-4 sm:px-8 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-400 to-indigo-500 p-0.5 shadow-md shadow-sky-500/20">
+                <div class="w-full h-full bg-slate-900 rounded-[10px] flex items-center justify-center">
+                    <i class="fa-solid fa-palette text-sky-400 text-base"></i>
+                </div>
+            </div>
+            <div>
+                <h1 class="font-bold text-base tracking-tight text-slate-100">Palette Bank & Extractor</h1>
+                <p class="text-[10px] text-slate-400">Offline Mode • Lokal & Data JSON</p>
+            </div>
+        </div>
+
+        <!-- Mode Switcher & Tools -->
+        <div class="flex items-center space-x-2">
+            <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+                <button id="navGalleryBtn" onclick="switchTab('gallery')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-500 text-white shadow-sm transition-all flex items-center space-x-1.5">
+                    <i class="fa-solid fa-grid-2"></i>
+                    <span>Bank Palet</span>
+                </button>
+                <button id="navPickerBtn" onclick="switchTab('picker')" class="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 rounded-lg transition-all flex items-center space-x-1.5">
+                    <i class="fa-solid fa-eye-dropper"></i>
+                    <span>Manual Color Picker</span>
+                </button>
+            </div>
+
+            <!-- Upload external data.json button -->
+            <button onclick="document.getElementById('jsonFileInput').click()" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 hover:text-sky-400 text-xs transition-all" title="Muat File data.json Eksternal">
+                <i class="fa-solid fa-folder-open"></i>
+            </button>
+            <input type="file" id="jsonFileInput" accept=".json" class="hidden" onchange="loadExternalJson(this.files)">
+        </div>
+    </header>
+
+    <!-- MAIN VIEW CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 md:p-8">
+
+        <!-- TAB 1: GALLERY BANK PALETTE -->
+        <div id="galleryView" class="space-y-6">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
+                <div class="relative w-full sm:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="searchInput" oninput="filterPalettes()" placeholder="Cari judul, sumber, tag, atau kode hex..." 
+                        class="w-full bg-slate-900 text-xs text-slate-200 border border-slate-700 rounded-xl pl-9 pr-8 py-2 focus:outline-none focus:border-sky-500 transition-all">
+                </div>
+                <div id="tagFilterContainer" class="flex items-center space-x-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+                    <!-- Dynamic tags -->
+                </div>
+            </div>
+
+            <div id="paletteGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Cards injected via JS -->
+            </div>
+
+            <div id="emptyGallery" class="hidden flex-col items-center justify-center py-16 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500 mb-3 text-xl">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-slate-300">Belum Ada Palet Ditemukan</h3>
+                <p class="text-xs text-slate-500 max-w-md mt-1 mb-4">Coba ubah kata kunci pencarian atau buat palet baru melalui menu Manual Color Picker.</p>
+            </div>
+        </div>
+
+        <!-- TAB 2: MANUAL COLOR PICKER TOOL -->
+        <div id="pickerView" class="hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div class="lg:col-span-8 flex flex-col space-y-4">
+                    <div class="flex items-center justify-between bg-slate-800/80 p-3 rounded-2xl border border-slate-700">
+                        <label for="pickerImgInput" class="cursor-pointer px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-white font-semibold text-xs rounded-xl transition-all flex items-center space-x-2">
+                            <i class="fa-solid fa-image"></i>
+                            <span>Buka Foto Baru</span>
+                        </label>
+                        <input type="file" id="pickerImgInput" accept="image/*" class="hidden" onchange="loadPickerImage(this.files)">
+                        <span class="text-xs text-slate-400 flex items-center space-x-1.5">
+                            <i class="fa-solid fa-hand-pointer text-sky-400"></i>
+                            <span>Seret gambar ke kotak atau klik untuk ambil warna</span>
+                        </span>
+                    </div>
+
+                    <div id="canvasWrapper" class="relative w-full bg-slate-950 border-2 border-dashed border-slate-800 hover:border-sky-500/50 rounded-2xl overflow-hidden min-h-[380px] flex items-center justify-center cursor-crosshair group transition-all">
+                        <div id="dragOverlay" class="absolute inset-0 bg-sky-500/10 border-2 border-sky-400 border-dashed rounded-2xl hidden items-center justify-center z-20 backdrop-blur-sm pointer-events-none">
+                            <div class="flex flex-col items-center text-sky-400 animate-bounce">
+                                <i class="fa-solid fa-cloud-arrow-down text-5xl mb-2"></i>
+                                <span class="font-bold text-sm">Lepaskan Foto di Sini</span>
+                            </div>
+                        </div>
+
+                        <div id="canvasPrompt" class="flex flex-col items-center justify-center p-8 text-center pointer-events-none">
+                            <div class="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-3 text-sky-400 text-2xl group-hover:scale-110 transition-transform">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                            </div>
+                            <h4 class="text-sm font-semibold text-slate-200">Seret & Lepas (Drag & Drop) Foto di Sini</h4>
+                            <p class="text-xs text-slate-500 max-w-xs mt-1">Atau klik tombol <b>"Buka Foto Baru"</b> di atas. Mendukung file lokal.</p>
+                        </div>
+
+                        <canvas id="imageCanvas" class="hidden max-w-full h-auto rounded-lg shadow-lg"></canvas>
+
+                        <div id="magnifier">
+                            <canvas id="magnifierCanvas" width="90" height="90"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-4 flex flex-col space-y-4">
+                    <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 space-y-3">
+                        <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center justify-between">
+                            <span>Informasi Palet</span>
+                            <i class="fa-solid fa-pen-to-square text-sky-400"></i>
+                        </h3>
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Judul Palet</label>
+                            <input type="text" id="inputTitle" oninput="updateJsonSnippet()" placeholder="Contoh: Pemandangan Awan" class="w-full bg-slate-900 text-xs text-slate-200 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Sumber</label>
+                            <input type="text" id="inputSource" oninput="updateJsonSnippet()" placeholder="Contoh: Koleksi Pribadi" class="w-full bg-slate-900 text-xs text-slate-200 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Path File Foto</label>
+                            <input type="text" id="inputImage" oninput="updateJsonSnippet()" placeholder="foto/awan.png" class="w-full bg-slate-900 text-xs font-mono text-sky-300 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Tag (pisahkan koma)</label>
+                            <input type="text" id="inputTags" oninput="updateJsonSnippet()" placeholder="Awan, Langit, Aestetik" class="w-full bg-slate-900 text-xs text-slate-200 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500">
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 flex-1 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                                    Warna Terpilih (<span id="colorCount">0</span>)
+                                </h3>
+                                <button onclick="clearPickedColors()" class="text-[11px] text-red-400 hover:underline">Hapus Semua</button>
+                            </div>
+                            <div id="pickedColorsList" class="flex flex-wrap gap-2 mb-4 min-h-[50px] p-2 bg-slate-950/60 rounded-xl border border-slate-800">
+                                <span class="text-[11px] text-slate-500 italic p-2">Belum ada warna. Klik area gambar di sebelah kiri.</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-[11px] font-semibold text-sky-400">Hasil JSON Snippet:</span>
+                                <button onclick="copyJsonSnippet()" class="text-[11px] text-slate-300 hover:text-white bg-slate-700 px-2 py-1 rounded-lg flex items-center space-x-1">
+                                    <i class="fa-regular fa-copy"></i>
+                                    <span>Salin JSON</span>
+                                </button>
+                            </div>
+                            <pre id="jsonOutput" class="w-full bg-slate-950 p-3 rounded-xl border border-slate-800 font-mono text-[11px] text-sky-300 h-28 overflow-y-auto leading-relaxed select-all">{}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- LIGHTBOX -->
+    <div id="lightbox" onclick="if (event.target === this) closeLightbox()">
+        <div class="lb-panel">
+            <div class="lb-stage">
+                <img id="lbImage" src="" alt="">
+                <button id="lbPrev" class="lb-nav prev" onclick="stepLightbox(-1)" title="Sebelumnya (←)"><i class="fa-solid fa-chevron-left"></i></button>
+                <button id="lbNext" class="lb-nav next" onclick="stepLightbox(1)" title="Berikutnya (→)"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+
+            <aside class="lb-side">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <h3 id="lbTitle" class="font-bold text-base text-slate-100 break-words"></h3>
+                        <p id="lbSource" class="text-xs text-slate-400 mt-0.5"></p>
+                    </div>
+                    <button onclick="closeLightbox()" class="flex-none w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all" title="Tutup (Esc)">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div id="lbTags" class="flex flex-wrap gap-1"></div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-200 uppercase tracking-wider">Palet Warna (<span id="lbCount">0</span>)</span>
+                    <button onclick="copyAllLightboxColors()" class="text-[11px] text-slate-300 hover:text-white bg-slate-700 px-2 py-1 rounded-lg flex items-center space-x-1">
+                        <i class="fa-regular fa-copy"></i>
+                        <span>Salin semua</span>
+                    </button>
+                </div>
+
+                <div id="lbColors" class="flex flex-col gap-2"></div>
+
+                <p id="lbCounter" class="text-[11px] text-slate-500 text-center mt-auto"></p>
+            </aside>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 border border-slate-700 text-slate-100 text-xs px-4 py-3 rounded-xl shadow-2xl transform translate-y-20 opacity-0 transition-all duration-300 flex items-center space-x-3 z-50">
+        <div class="w-6 h-6 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-check"></i>
+        </div>
+        <span id="toastText" class="font-medium">Pesan Notifikasi</span>
+    </div>
+
+    <!-- DATA PALET (data/data.js mendefinisikan const PALETTES) -->
+    <script src="data/data.js"></script>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // Data berasal dari data/data.js (const PALETTES)
+        let palettes = [];
+
+        let activeTagFilter = 'All';
+        let visiblePalettes = [];
+        let lightboxIndex = -1;
+        let pickedColors = [];
+        let currentLoadedImg = null;
+
+        const canvas = document.getElementById('imageCanvas');
+        const ctx = canvas.getContext('2d');
+        const magnifier = document.getElementById('magnifier');
+        const magCanvas = document.getElementById('magnifierCanvas');
+        const magCtx = magCanvas.getContext('2d');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+        const dragOverlay = document.getElementById('dragOverlay');
+
+        window.onload = () => {
+            setupCanvasEvents();
+            setupDragAndDrop();
+            loadPalettes();
+        };
+
+        // MUAT DATA dari data/data.js
+        function loadPalettes() {
+            if (typeof PALETTES === 'undefined' || !Array.isArray(PALETTES)) {
+                console.error('data/data.js tidak ditemukan atau PALETTES bukan array');
+                showToast('Gagal memuat data/data.js', 'error');
+                palettes = [];
+            } else {
+                palettes = PALETTES;
+            }
+            renderTagFilters();
+            renderPalettes();
+        }
+
+        // LOAD EXTERNAL JSON FILE (Optional manual upload)
+        function loadExternalJson(files) {
+            const file = files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (Array.isArray(data)) {
+                        palettes = data;
+                        renderTagFilters();
+                        renderPalettes();
+                        showToast("File data.json berhasil dimuat!");
+                    } else {
+                        showToast("Format JSON tidak valid (harus array)", "error");
+                    }
+                } catch (err) {
+                    showToast("Gagal mem-parsing file JSON", "error");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // RENDER TAG FILTERS
+        function renderTagFilters() {
+            const container = document.getElementById('tagFilterContainer');
+            const tagsSet = new Set(['All']);
+            palettes.forEach(p => {
+                if (p.tags && Array.isArray(p.tags)) {
+                    p.tags.forEach(t => tagsSet.add(t));
+                }
+            });
+
+            container.innerHTML = Array.from(tagsSet).map(tag => `
+                <button onclick="filterByTag('${tag}')" class="px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${activeTagFilter === tag ? 'bg-sky-500 text-white shadow-sm' : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-700'}">
+                    ${tag}
+                </button>
+            `).join('');
+        }
+
+        function filterByTag(tag) {
+            activeTagFilter = tag;
+            renderTagFilters();
+            renderPalettes();
+        }
+
+        function filterPalettes() {
+            renderPalettes();
+        }
+
+        // RENDER PALETTE CARDS
+        function renderPalettes() {
+            const grid = document.getElementById('paletteGrid');
+            const emptyState = document.getElementById('emptyGallery');
+            const query = document.getElementById('searchInput').value.toLowerCase();
+
+            const filtered = palettes.filter(p => {
+                const matchesTag = activeTagFilter === 'All' || (p.tags && p.tags.includes(activeTagFilter));
+                const matchesQuery = !query || 
+                    p.title.toLowerCase().includes(query) || 
+                    (p.source && p.source.toLowerCase().includes(query)) ||
+                    (p.tags && p.tags.some(t => t.toLowerCase().includes(query))) ||
+                    p.colors.some(c => (typeof c === 'string' ? c : c.hex).toLowerCase().includes(query));
+                return matchesTag && matchesQuery;
+            });
+
+            visiblePalettes = filtered;
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+                return;
+            }
+
+            emptyState.classList.remove('flex');
+            emptyState.classList.add('hidden');
+
+            grid.innerHTML = filtered.map(p => {
+                const colorsHtml = p.colors.map(c => {
+                    const hex = typeof c === 'string' ? c : c.hex;
+                    const label = typeof c === 'object' && c.label ? c.label : hex;
+                    return `
+                        <div class="group/color relative flex-1 h-14 first:rounded-l-xl last:rounded-r-xl transition-all hover:flex-[1.5] cursor-pointer" 
+                             style="background-color: ${hex};" 
+                             onclick="copyText('${hex}', 'Kode warna ${hex} disalin!')"
+                             title="Klik untuk salin ${hex} (${label})">
+                            <div class="absolute inset-x-0 bottom-1 opacity-0 group-hover/color:opacity-100 transition-opacity text-center text-[9px] font-mono font-bold text-white drop-shadow">
+                                ${hex}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                const tagsHtml = p.tags ? p.tags.map(t => `<span class="px-2 py-0.5 bg-slate-900 border border-slate-700/80 rounded-md text-[10px] text-slate-300">#${t}</span>`).join('') : '';
+
+                return `
+                    <div class="glass rounded-2xl overflow-hidden border border-slate-800 flex flex-col shadow-lg hover:border-slate-700 transition-all">
+                        <div class="relative h-48 w-full bg-slate-950 overflow-hidden group cursor-zoom-in" onclick="openLightbox('${p.id}')" title="Klik untuk lihat foto penuh">
+                            <img src="${p.image}" alt="${p.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.src='${p.fallbackImage || 'https://placehold.co/600x400/1e293b/38bdf8?text=Foto+Tidak+Ditemukan'}';">
+                            <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent"></div>
+                            <div class="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                                <span class="text-[11px] font-medium text-slate-300 bg-slate-900/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-700/50">${p.source || 'Referensi'}</span>
+                            </div>
+                        </div>
+                        <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
+                            <div>
+                                <h3 class="font-bold text-sm text-slate-100 mb-1">${p.title}</h3>
+                                <div class="flex flex-wrap gap-1 mb-2">${tagsHtml}</div>
+                            </div>
+                            <div class="space-y-1.5">
+                                <div class="flex items-center justify-between text-[11px] text-slate-400">
+                                    <span>Palet Warna (${p.colors.length}):</span>
+                                    <span class="text-[10px] italic">Klik warna untuk salin</span>
+                                </div>
+                                <div class="flex rounded-xl overflow-hidden shadow-inner border border-slate-800">
+                                    ${colorsHtml}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // LIGHTBOX
+        const PLACEHOLDER_IMG = 'https://placehold.co/600x400/1e293b/38bdf8?text=Foto+Tidak+Ditemukan';
+
+        function openLightbox(id) {
+            const idx = visiblePalettes.findIndex(p => String(p.id) === String(id));
+            if (idx === -1) return;
+            lightboxIndex = idx;
+            renderLightbox();
+            document.getElementById('lightbox').classList.add('open');
+            document.body.classList.add('lb-open');
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('open');
+            document.body.classList.remove('lb-open');
+        }
+
+        function stepLightbox(dir) {
+            const n = visiblePalettes.length;
+            if (n < 2) return;
+            lightboxIndex = (lightboxIndex + dir + n) % n;
+            renderLightbox();
+        }
+
+        function renderLightbox() {
+            const p = visiblePalettes[lightboxIndex];
+            if (!p) return;
+
+            const img = document.getElementById('lbImage');
+            img.onerror = () => { img.onerror = null; img.src = p.fallbackImage || PLACEHOLDER_IMG; };
+            img.src = p.image;
+            img.alt = p.title;
+
+            document.getElementById('lbTitle').textContent = p.title;
+            document.getElementById('lbSource').textContent = p.source || 'Referensi';
+            document.getElementById('lbCount').textContent = p.colors.length;
+            document.getElementById('lbCounter').textContent = `${lightboxIndex + 1} / ${visiblePalettes.length}`;
+
+            const multiple = visiblePalettes.length > 1;
+            document.getElementById('lbPrev').style.display = multiple ? '' : 'none';
+            document.getElementById('lbNext').style.display = multiple ? '' : 'none';
+
+            document.getElementById('lbTags').innerHTML = (p.tags || []).map(t =>
+                `<span class="px-2 py-0.5 bg-slate-900 border border-slate-700/80 rounded-md text-[10px] text-slate-300">#${t}</span>`
+            ).join('');
+
+            document.getElementById('lbColors').innerHTML = p.colors.map(c => {
+                const hex = typeof c === 'string' ? c : c.hex;
+                const label = typeof c === 'object' && c.label ? c.label : 'Klik untuk salin';
+                return `
+                    <button class="lb-swatch" onclick="copyText('${hex}', 'Kode warna ${hex} disalin!')">
+                        <span class="chip" style="background-color: ${hex};"></span>
+                        <span>
+                            <span class="hex block">${hex}</span>
+                            <span class="label block">${label}</span>
+                        </span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function copyAllLightboxColors() {
+            const p = visiblePalettes[lightboxIndex];
+            if (!p) return;
+            const list = p.colors.map(c => typeof c === 'string' ? c : c.hex).join(', ');
+            copyText(list, 'Semua kode warna disalin!');
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!document.getElementById('lightbox').classList.contains('open')) return;
+            if (e.key === 'Escape') closeLightbox();
+            else if (e.key === 'ArrowLeft') stepLightbox(-1);
+            else if (e.key === 'ArrowRight') stepLightbox(1);
+        });
+
+        // TAB SWITCHING
+        function switchTab(tab) {
+            const galleryView = document.getElementById('galleryView');
+            const pickerView = document.getElementById('pickerView');
+            const navGalleryBtn = document.getElementById('navGalleryBtn');
+            const navPickerBtn = document.getElementById('navPickerBtn');
+
+            if (tab === 'gallery') {
+                galleryView.classList.remove('hidden');
+                pickerView.classList.add('hidden');
+                navGalleryBtn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-500 text-white shadow-sm transition-all flex items-center space-x-1.5";
+                navPickerBtn.className = "px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 rounded-lg transition-all flex items-center space-x-1.5";
+            } else {
+                galleryView.classList.add('hidden');
+                pickerView.classList.remove('hidden');
+                navPickerBtn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-500 text-white shadow-sm transition-all flex items-center space-x-1.5";
+                navGalleryBtn.className = "px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 rounded-lg transition-all flex items-center space-x-1.5";
+            }
+        }
+
+        // DRAG & DROP & PICKER LOGIC
+        function setupDragAndDrop() {
+            ['dragenter', 'dragover'].forEach(eventName => {
+                canvasWrapper.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dragOverlay.classList.remove('hidden');
+                    dragOverlay.classList.add('flex');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                canvasWrapper.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dragOverlay.classList.remove('flex');
+                    dragOverlay.classList.add('hidden');
+                }, false);
+            });
+
+            canvasWrapper.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files && files.length > 0) {
+                    if (files[0].type.startsWith('image/')) {
+                        loadPickerImage(files);
+                        showToast(`Foto "${files[0].name}" dimuat!`);
+                    } else {
+                        showToast('Harap masukkan file gambar (JPG, PNG)', 'error');
+                    }
+                }
+            });
+        }
+
+        function loadPickerImage(files) {
+            const file = files[0];
+            if (!file) return;
+
+            document.getElementById('inputImage').value = `foto/${file.name}`;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    currentLoadedImg = img;
+                    document.getElementById('canvasPrompt').classList.add('hidden');
+                    canvas.classList.remove('hidden');
+
+                    const maxW = 750;
+                    const scale = img.width > maxW ? maxW / img.width : 1;
+                    canvas.width = img.width * scale;
+                    canvas.height = img.height * scale;
+
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    updateJsonSnippet();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function setupCanvasEvents() {
+            canvas.addEventListener('mousemove', (e) => {
+                if (!currentLoadedImg) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                magnifier.style.display = 'block';
+                magnifier.style.left = `${x - 45}px`;
+                magnifier.style.top = `${y - 45}px`;
+
+                magCtx.imageSmoothingEnabled = false;
+                magCtx.clearRect(0, 0, 90, 90);
+                magCtx.drawImage(canvas, x - 15, y - 15, 30, 30, 0, 0, 90, 90);
+
+                magCtx.strokeStyle = '#ffffff';
+                magCtx.lineWidth = 1;
+                magCtx.strokeRect(41, 41, 8, 8);
+            });
+
+            canvas.addEventListener('mouseleave', () => {
+                magnifier.style.display = 'none';
+            });
+
+            canvas.addEventListener('click', (e) => {
+                if (!currentLoadedImg) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = Math.floor(e.clientX - rect.left);
+                const y = Math.floor(e.clientY - rect.top);
+
+                const pixelData = ctx.getImageData(x, y, 1, 1).data;
+                const hex = rgbToHex(pixelData[0], pixelData[1], pixelData[2]);
+
+                addPickedColor(hex);
+            });
+        }
+
+        function addPickedColor(hex) {
+            if (pickedColors.includes(hex)) return;
+            pickedColors.push(hex);
+            renderPickedColors();
+            updateJsonSnippet();
+            showToast(`Warna ${hex} diserap!`);
+        }
+
+        function removePickedColor(hex) {
+            pickedColors = pickedColors.filter(c => c !== hex);
+            renderPickedColors();
+            updateJsonSnippet();
+        }
+
+        function clearPickedColors() {
+            pickedColors = [];
+            renderPickedColors();
+            updateJsonSnippet();
+        }
+
+        function renderPickedColors() {
+            const list = document.getElementById('pickedColorsList');
+            document.getElementById('colorCount').textContent = pickedColors.length;
+
+            if (pickedColors.length === 0) {
+                list.innerHTML = `<span class="text-[11px] text-slate-500 italic p-2">Belum ada warna. Klik area gambar di sebelah kiri.</span>`;
+                return;
+            }
+
+            list.innerHTML = pickedColors.map(hex => `
+                <div class="flex items-center space-x-1.5 bg-slate-900 border border-slate-700 px-2 py-1 rounded-lg text-xs font-mono">
+                    <div class="w-3.5 h-3.5 rounded-full border border-slate-600" style="background-color: ${hex};"></div>
+                    <span class="text-slate-200">${hex}</span>
+                    <button onclick="removePickedColor('${hex}')" class="text-slate-400 hover:text-red-400 ml-1">
+                        <i class="fa-solid fa-xmark text-[10px]"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function updateJsonSnippet() {
+            const title = document.getElementById('inputTitle').value.trim() || "Judul Palet";
+            const source = document.getElementById('inputSource').value.trim() || "Sumber";
+            const image = document.getElementById('inputImage').value.trim() || "foto/awan.png";
+            const tagsRaw = document.getElementById('inputTags').value.trim();
+            const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()) : ["Awan"];
+
+            const jsonObj = {
+                id: String(Date.now()),
+                title: title,
+                source: source,
+                image: image,
+                colors: pickedColors,
+                tags: tags
+            };
+
+            document.getElementById('jsonOutput').textContent = JSON.stringify(jsonObj, null, 2);
+        }
+
+        function copyJsonSnippet() {
+            const text = document.getElementById('jsonOutput').textContent;
+            copyText(text, 'JSON Snippet berhasil disalin!');
+        }
+
+        function copyText(text, msg) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast(msg);
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastText').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+        }
+    </script>
+</body>
+</html>
